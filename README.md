@@ -1,7 +1,7 @@
 # Biotech BD Tracker
 
 > **Cross-border out-licensing deal tracker for Greater China, Japan, and Korea biotech.**
-> Maintained for the R-Bridge (Structured Capital) team at CBC Group as a sourcing engine for royalty financing and structured capital opportunities.
+> A sourcing engine for royalty financing and structured capital opportunities.
 
 ---
 
@@ -26,7 +26,7 @@ This tracker exists to systematically monitor that flow and answer one core ques
 
 > **Which licensors might benefit from royalty monetization, synthetic royalties, or milestone receivable financing — and which deals are large enough, late enough, and structured cleanly enough to support it?**
 
-Every deal in this database is read through the lens of a **royalty financing (RBF) provider**. The 15-column schema is deliberately built to surface the inputs an RBF underwriter needs at a glance: who got which rights in which territories, how late-stage is the asset, what's the disclosed cash flow (upfront / total), and is the licensor a credible counterparty for a structured deal.
+Every deal in this database is read through the lens of a **structured capital provider**. The 15-column schema is deliberately built to surface the inputs an underwriter needs at a glance: who got which rights in which territories, how late-stage is the asset, what's the disclosed cash flow (upfront / total), and is the licensor a credible counterparty for a structured deal.
 
 ---
 
@@ -39,7 +39,7 @@ As of the most recent update:
 | **Definition** | Highest global stage ≥ Ph3 | IND Filed through Ph2/3 |
 | **Deals tracked** | 35 | 140 |
 | **Date range** | 2020 – 2026 | 2020 – 2026 |
-| **Primary use case** | Near-term RBF underwriting universe | Watchlist for graduation to Actionable |
+| **Primary use case** | Near-term underwriting universe | Watchlist for graduation to Actionable |
 
 **Geographic mix** (Pipeline + Actionable combined, ~175 deals):
 
@@ -99,7 +99,7 @@ Both sheets (`Actionable` and `Pipeline`) share the same **15-column schema**:
 | 12 | **Lead Indications** | Top 2-3 indications, semicolon-separated and abbreviated. |
 | 13 | **Rights** | Rights structure: `R&D rights: <terr> \| Mfg rights: <terr> \| Commercial rights: <terr>` (or `All rights: <terr>`). |
 | 14 | **Date** | Announcement date, `YYYY-MM-DD`. |
-| 15 | **Note** | 1-3 sentence analyst comment: FIC/BIC flag, deal structure, key milestones, **RBF relevance assessment**. |
+| 15 | **Note** | 1-3 sentence analyst comment: FIC/BIC flag, deal structure, key milestones, and counterparty/financing relevance. |
 
 > Full mapping rules (RAW Chinese → English tracker columns), modality and rights vocabularies, the Top-20 MNC list, and Note-generation conventions are documented in [`CLAUDE.md`](./CLAUDE.md).
 
@@ -128,9 +128,9 @@ Each deal-asset row is assigned to exactly one sheet based on the **highest glob
 
 | Highest Global Stage | Sheet |
 |---|---|
-| `Approved`, `NDA Filed`, `Ph3` | **`Actionable`** — these assets are within RBF underwriting range today |
+| `Approved`, `NDA Filed`, `Ph3` | **`Actionable`** — assets within near-term underwriting range |
 | `Ph2/3`, `Ph2`, `Ph1/2`, `Ph1`, `IND Filed` | **`Pipeline`** — watchlist; promote to `Actionable` upon stage advancement |
-| `Preclnl` only | **Excluded** — too early for RBF underwriting |
+| `Preclnl` only | **Excluded** — too early to underwrite |
 | `全球研发状态 = Inactive` | **Excluded** — programs no longer being developed |
 
 **Stage ordering** (used for the highest-stage comparison):
@@ -152,7 +152,7 @@ The standard refresh cycle when a new PharmCube export lands in `raw/`:
    - Licensor HQ ∈ {China, Japan, Korea, Taiwan, Hong Kong}
    - Program status not `Inactive`
 4. **Map** the 15 tracker columns from raw fields per the rules in `CLAUDE.md`.
-5. **Auto-generate** the Note field with FIC/BIC flag, deal structure summary, stage highlight, and RBF relevance.
+5. **Auto-generate** the Note field with FIC/BIC flag, deal structure summary, stage highlight, and counterparty/financing relevance.
 6. **Assign** each row to `Actionable` or `Pipeline` per the split logic above.
 7. **Deduplicate** against existing rows on `Licensor + Licensee + asset name`. Updates advance stage columns; new rows are flagged `[NEW]`; ambiguous matches are flagged `[CHECK]`.
 8. **Sort** each sheet by `Date` descending, then `Licensor` alphabetically.
@@ -175,5 +175,5 @@ PharmCube was selected over English-language alternatives (Cortellis, Evaluate P
 
 - This is a **private working repository**. Tracker contents reflect curated analyst judgment and are not for external distribution.
 - All deal data is sourced from public announcements; **no MNPI** is captured here.
-- Counterparty notes and RBF relevance assessments are **internal opinions** for sourcing purposes only and do not constitute investment recommendations.
-- Top-20 MNC list, modality vocabulary, and RBF lens criteria are subject to periodic revision — see `CLAUDE.md` for the current canonical version.
+- Counterparty notes and financing-relevance assessments are **internal opinions** for sourcing purposes only and do not constitute investment recommendations.
+- Top-20 MNC list, modality vocabulary, and sourcing criteria are subject to periodic revision — see `CLAUDE.md` for the current canonical version.
