@@ -27,15 +27,73 @@ biotech-bd-tracker/
 
 - **Provider**: 医药魔方 (PharmCube), or any equivalent biopharma BD database that supplies the same field set
 - **Naming convention**: `raw/YYYY-MM-DD.xlsx` (date of download / drop)
-- **Primary mode — weekly incremental** (default going forward):
-  - English-language `.xlsx`, pre-filtered by the analyst to contain **only net-new deals** not yet in the tracker
-  - One row per deal-asset (flat structure); out-of-scope deals (domestic-only, Preclnl-only, Inactive, non-GC/JP/KR licensors) are already excluded by the analyst before saving
-  - This is the **default input format** — the workflow is append-only, not a full refresh, and no dedup against the existing tracker is performed
-- **Legacy mode — full-refresh Chinese dump** (supported for backfilling existing archives):
-  - Full PharmCube search export with column names in Chinese
-  - **Dual-row structure**: each deal has one `数据层级 = 交易信息` header row followed by one or more `数据层级 = 管线信息` detail rows. Multi-asset deals produce multiple pipeline rows.
-  - Requires the full 10-step legacy workflow (parse dual rows → apply in-scope filters → dedup against existing tracker → merge) — see the "Legacy Full-Refresh Workflow" sub-section below if you ever need to backfill from this format.
 - **Sheet name detection**: detect by content/structure, not by sheet name. Common names: `Search Results`, `检索结果`, or arbitrary user-chosen names.
+
+### Two orthogonal dimensions
+
+Raw files vary along **two independent axes**. Any combination is possible and the workflow must handle all of them.
+
+**1. Content mode** — *what's in the file*
+
+| Mode | Description | Workflow implication |
+|---|---|---|
+| **Incremental** (default, weekly cadence) | Analyst-curated, contains **only net-new deals** not yet in the tracker. Out-of-scope rows (domestic, Preclnl-only, Inactive, non-GC/JP/KR) are pre-filtered. | No dedup against existing tracker; append-only. Sanity check flags any accidental duplicates as a warning. |
+| **Full-refresh** (legacy / backfill) | Full database dump with **all deals** in a broad search. Out-of-scope rows still present. | Must apply in-scope filters (out-licensing direction, HQ, non-Inactive); must dedup against existing tracker before appending. |
+
+**2. Row structure** — *how rows are physically laid out*
+
+| Structure | Description | Preprocessing step |
+|---|---|---|
+| **Flat** | One tracker-ready row per deal-asset. All fields (deal-level + pipeline-level) on a single row. | None — read rows directly. |
+| **Dual-row** | Each deal has one `Deal Info` / `交易信息` header row carrying deal-level fields (parties, financials, date, deal type), followed by one or more `Pipeline Info` / `管线信息` detail rows carrying asset-level fields (target, MoA, stages, indications, modality, tags). Multi-asset deals produce multiple detail rows under one header. | **Normalize to flat in memory**: for each detail row, inherit the deal-level fields from its preceding header row. Each detail row becomes one tracker output row. |
+
+Both content modes can appear in either structure. Common combinations:
+- **Incremental + Flat**: analyst manually curated rows in a spreadsheet (simplest path)
+- **Incremental + Dual-row**: PharmCube search filtered to this week's new deals, exported natively (still dual-row because that's PharmCube's native export format)
+- **Full-refresh + Dual-row**: legacy full database dump in Chinese
+- **Full-refresh + Flat**: rare; unlikely to appear in practice
+
+### Raw preprocessing (Phase 1 → 2 transition)
+
+Before any field mapping, **auto-detect** the raw's structure and content mode, then normalize:
+
+```python
+# 1. Detect row structure
+has_data_level_col = any(
+    str(v).strip() in {'Data Level', 'Hierarchy', '数据层级', '数据层次'}
+    for v in header_row
+)
+if has_data_level_col:
+    values = {ws.cell(r, data_level_col).value for r in range(2, max_row+1)}
+    if values & {'交易信息', '管线信息', 'Deal Info', 'Pipeline Info'}:
+        structure = 'dual-row'
+    else:
+        structure = 'flat'
+else:
+    structure = 'flat'
+
+# 2. Normalize dual-row → flat (in memory)
+if structure == 'dual-row':
+    normalized_rows = []
+    current_header = None
+    for row in raw_rows:
+        level = row[data_level_col]
+        if level in ('交易信息', 'Deal Info'):
+            current_header = row
+        elif level in ('管线信息', 'Pipeline Info') and current_header is not None:
+            merged = {**current_header, **{k: v for k, v in row.items() if v is not None}}
+            normalized_rows.append(merged)
+    # Now normalized_rows is flat — each row is one deal-asset with all fields
+
+# 3. Detect content mode (ask user if ambiguous)
+#    Heuristic: if N < 30 rows and filename suggests a date → likely incremental
+#    If N > 100 rows and includes out-of-scope rows → likely full-refresh
+#    When in doubt, ASK the user: "Is this a weekly incremental or a full refresh?"
+```
+
+**If the user doesn't volunteer the content mode**, ask in Phase 1 before doing anything else. Default assumption is **incremental** unless the raw clearly contains out-of-scope rows or is larger than ~50 rows.
+
+After preprocessing, the rest of the workflow (Phase 2 mapping onwards) is **identical** regardless of source structure. Content mode determines whether Phase 3 runs sanity-check-only (incremental) vs full dedup + filters (full-refresh).
 
 ---
 
@@ -346,10 +404,13 @@ The default assumption is that if the analyst included it, they meant to include
 
 When asked to process a weekly raw file, run as a **5-phase pipeline with a mandatory review checkpoint**:
 
-### Phase 1 — Inspection (read-only)
-- Read new raw file from `raw/YYYY-MM-DD.xlsx` and count rows
+### Phase 1 — Inspection + Preprocessing (read-only)
+- Read new raw file from `raw/YYYY-MM-DD.xlsx`
+- **Detect row structure** (flat vs dual-row) via the Raw Preprocessing rules above. If dual-row, normalize to flat in memory by pairing each `管线信息` / `Pipeline Info` detail row with its preceding `交易信息` / `Deal Info` header.
+- **Detect content mode** (incremental vs full-refresh). Default to incremental; if the raw is large (>~50 rows) or clearly contains out-of-scope rows, ask the user to confirm.
+- If **full-refresh**, apply in-scope filters (out-licensing direction + GC/JP/KR HQ + non-Inactive) — these are skipped for incremental
 - Read existing `tracker/bd_tracker.xlsx` for baseline sizes and for the sanity-check index
-- Report: `N raw rows to append; existing tracker = X Actionable + Y Pipeline`
+- Report: `Detected: <structure> / <content mode>. N normalized rows to process. Existing tracker = X Actionable + Y Pipeline`
 
 ### Phase 2 — Mapping (in-memory, may pause for input)
 - Map each raw row to the 15-column schema (stages, modality, rights, indications) per the Field Mapping rules below
