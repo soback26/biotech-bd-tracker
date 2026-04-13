@@ -36,7 +36,7 @@ As of the most recent update:
 
 | Metric | Actionable | Pipeline |
 |---|---|---|
-| **Definition** | Highest global stage ≥ Ph2/3 | IND Filed through Ph2 |
+| **Definition** | Highest ex-China stage (US/EU/JP) ≥ Ph2/3 | Highest ex-China stage is Ph2 or earlier |
 | **Deals tracked** | 35 | 140 |
 | **Date range** | 2020 – 2026 | 2020 – 2026 |
 | **Primary use case** | Near-term underwriting universe | Watchlist for graduation to Actionable |
@@ -124,20 +124,23 @@ Both sheets (`Actionable` and `Pipeline`) share the same **15-column schema**:
 
 ## Sheet Split Logic
 
-Each deal-asset row is assigned to exactly one sheet based on the **highest global stage** across US, CN, EU, and JP:
+Each deal-asset row is assigned to exactly one sheet based on the **highest ex-China stage**, computed as `max(US, EU, JP)`. **CN is deliberately excluded**: the investment thesis is ex-China royalty opportunities, not Chinese domestic sales.
 
-| Highest Global Stage | Sheet |
+| `max(US, EU, JP)` | Sheet |
 |---|---|
-| `Approved`, `NDA Filed`, `Ph3`, `Ph2/3` | **`Actionable`** — pivotal-stage or later, within near-term underwriting range |
-| `Ph2`, `Ph1/2`, `Ph1`, `IND Filed` | **`Pipeline`** — watchlist; promote to `Actionable` upon stage advancement |
-| `Preclnl` only | **Excluded** — too early to underwrite |
-| `全球研发状态 = Inactive` | **Excluded** — programs no longer being developed |
+| `Approved`, `NDA Filed`, `Ph3`, `Ph2/3` | **`Actionable`** — pivotal-stage or later in an ex-China market, within near-term underwriting range |
+| `Ph2`, `Ph1/2`, `Ph1`, `IND Filed`, `Preclnl`, or all blank | **`Pipeline`** — watchlist; promote to `Actionable` when ex-China trials advance |
+| Global status = `Inactive` | **Excluded** — programs no longer being developed |
 
-**Stage ordering** (used for the highest-stage comparison):
+**Example**: an asset with `US=Ph2, CN=Ph3, EU=Ph2/3, JP=Preclnl` has ex-China stage `Ph2/3` → **Actionable**. An asset with `US=Preclnl, CN=Approved` has ex-China stage `Preclnl` → **Pipeline** (watchlist — CN approval alone does not establish an ex-China royalty opportunity; we watch for the asset to reach US/EU/JP clinical stages under the Western licensee).
+
+**Stage ordering** (used for the max comparison):
 
 ```
 Preclnl < IND Filed < Ph1 < Ph1/2 < Ph2 < Ph2/3 < Ph3 < NDA Filed < Approved
 ```
+
+**Promotion on stage advancement**: when a weekly update shows that an existing Pipeline asset has advanced ex-China (e.g. new data moves `US Ph2 → Ph2/3`), the workflow **updates the existing row in place** and **moves it to `Actionable`** if the new ex-China stage crosses the Ph2/3 threshold. Manually-edited Notes on the row are preserved.
 
 ---
 
@@ -149,12 +152,13 @@ The tracker is updated **weekly with an append-only incremental pass**. Each wee
 2. **Map** the 15 tracker columns from each raw row per the rules in `CLAUDE.md` (stage vocabulary, modality vocabulary, MoA abbreviations, rights vocabulary, disease abbreviations, Top-20 MNC tagging, etc.).
 3. **Compose** the `Licensor` column as `English (中文)` for CN/HK/TW companies using `company_names.md`; JP/KR licensors use English only.
 4. **Auto-generate** the Note field with FIC/BIC flag, deal structure summary, stage highlight, and counterparty/financing relevance.
-5. **Assign** each row to `Actionable` or `Pipeline` per the split logic above (drop Preclnl-only rows).
-6. **Append** to the target sheet. A light sanity check flags any row whose `(Licensor, Licensee, asset name)` triple already exists in the tracker — surfaced as a warning for user review, not automatically deduped.
-7. **Re-sort** each affected sheet by `Date` descending, then `Licensor` alphabetically.
-8. **Save** to `tracker/bd_tracker.xlsx` preserving Bloomberg-style formatting, then commit with the message format:
+5. **Classify** each row as `NEW` (not in tracker yet), `UPDATE` (already in tracker with a stage advancement), `PROMOTE` (update whose new ex-China stage crosses into Actionable), or `NO-OP` (already in tracker with no changes).
+6. **Assign** each `NEW` and `PROMOTE` row to `Actionable` or `Pipeline` based on the new ex-China stage; exclude any row with global status = `Inactive`.
+7. **Apply** the writes: append `NEW` rows to their target sheet, overwrite advanced stage cells for `UPDATE` rows in place (preserving their existing Notes), and move `PROMOTE` rows from Pipeline to Actionable with their updated stages.
+8. **Re-sort** each affected sheet by `Date` descending, then `Licensor` alphabetically.
+9. **Save** to `tracker/bd_tracker.xlsx` preserving Bloomberg-style formatting, then commit with the message format:
    ```
-   update: YYYY-MM-DD | +X new deals | <summary of notable deals>
+   update: YYYY-MM-DD | +N new, +U updates, +P promotions | <summary of notable deals>
    ```
 
 ---

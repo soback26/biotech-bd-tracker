@@ -105,8 +105,10 @@ After preprocessing, the rest of the workflow (Phase 2 mapping onwards) is **ide
 
 | Sheet | Definition | Current rows |
 |---|---|---|
-| `Actionable` | Highest global stage ∈ {`Ph2/3`, `Ph3`, `NDA Filed`, `Approved`} — pivotal-stage or later, near-term cash flow potential, primary underwriting universe | ~35+ deals |
-| `Pipeline` | Highest global stage ∈ {`IND Filed`, `Ph1`, `Ph1/2`, `Ph2`} — watchlist for graduation to Actionable | ~140 deals |
+| `Actionable` | **Highest ex-China stage** ∈ {`Ph2/3`, `Ph3`, `NDA Filed`, `Approved`} — asset is at pivotal stage or later **in at least one of US / EU / JP**, making the ex-China cash flow underwritable today | ~41 deals |
+| `Pipeline` | Highest ex-China stage ∈ {`Preclnl`, `IND Filed`, `Ph1`, `Ph1/2`, `Ph2`} or all blank — watchlist for graduation to Actionable as ex-China trials advance | ~134 deals |
+
+**The investment thesis is ex-China royalty opportunities, not Chinese domestic sales.** An asset that is CN-Approved but still Preclnl in US/EU/JP has no underwritable ex-China cash flow — it goes to Pipeline (watchlist), not Actionable, even though its global stage is "Approved". Once ex-China trials reach Ph2/3, it graduates to Actionable.
 
 **Excluded**: All-`Preclnl`-only assets; deals where global R&D status is `Inactive`; pure domestic deals (out-licensing direction = "Domestic to Domestic" / `国内转国内`).
 
@@ -312,7 +314,7 @@ Append `(Top20 MNC)` to Licensee for any of these (and **strip any pre-existing 
 ### How it is used
 
 1. **Composing the Licensor column** (primary use): For any CN/HK/TW licensor, format as `English Name (中文)` using the registry. Example: raw has `RemeGen` or `荣昌生物` → tracker shows `RemeGen (荣昌生物)`. If the weekly incremental raw is in English but lacks the Chinese name, look up the Chinese via the registry and append it in parentheses.
-2. **Sanity-check duplicate detection** (light use): In the rare event that an analyst accidentally includes a deal that already exists in the tracker, normalize both sides to canonical English via the registry before comparing. This is a **warning surface**, not an automatic dedup — any overlap is flagged to the user for review.
+2. **Tracker-match classification** (Phase 3 core): Normalize both sides to canonical English via the registry before building the match key `(Licensor, Licensee, asset)`. This is what lets the workflow distinguish `NEW` rows from `UPDATE` / `PROMOTE` candidates (same asset from same parties that already exists in the tracker and is getting a stage advancement).
 3. **Legacy full-refresh dedup** (legacy use only): When backfilling from a full Chinese dump, the registry is the only reliable way to match Chinese-raw licensors against an English tracker.
 4. **JP/KR licensors**: No Chinese annotation. Use the English name as-is from source.
 5. **JV entities**: No Chinese annotation (e.g. `KYM Biosciences` for 康明百奥 (JV)).
@@ -363,42 +365,67 @@ Direct, opinionated, terse, investment-memo style. No filler. Semicolons separat
 
 ## Sheet Assignment Logic
 
-Compute `highest_global_stage = max(US, CN, EU, JP)` using the stage ordering above. The highest-global rule captures the most advanced program status across all four tracked regions — e.g. an asset with `US=Ph2, CN=Ph2/3` resolves to `Ph2/3` and is sorted into `Actionable`.
+Compute `ex_china_stage = max(US, EU, JP)` using the stage ordering above. **CN is deliberately excluded** — the thesis is ex-China royalty, not Chinese domestic sales. An asset's CN stage has no effect on sheet assignment.
 
-| Highest Global Stage | Sheet |
+Example: an asset with `US=Ph2, CN=Ph3, EU=Ph2/3, JP=Preclnl` has `ex_china_stage = Ph2/3` (max of US/EU/JP) → **`Actionable`**.
+
+Example: an asset with `US=Preclnl, CN=Approved, EU=Preclnl, JP=Preclnl` has `ex_china_stage = Preclnl` → **`Pipeline`** (watchlist — CN approval alone does not qualify, but we keep it in the watchlist because the out-licensing deal itself suggests ex-China development is planned).
+
+| `ex_china_stage = max(US, EU, JP)` | Sheet |
 |---|---|
 | `Approved`, `NDA Filed`, `Ph3`, `Ph2/3` | **`Actionable`** |
-| `Ph2`, `Ph1/2`, `Ph1`, `IND Filed` | **`Pipeline`** |
-| `Preclnl` only or all blank | **Excluded** |
+| `Ph2`, `Ph1/2`, `Ph1`, `IND Filed`, `Preclnl`, or all blank | **`Pipeline`** |
 | Global R&D status = `Inactive` | **Excluded** |
 
-**Rationale for the Ph2/3 cutoff**: pivotal Ph2/3 trials are frequently run on accelerated-approval pathways (especially in oncology and rare disease). An asset already in Ph2/3 is within 1-2 years of a potential NDA filing, making it underwritable today — the same window as a Ph3 asset. Earlier stages (Ph2 and below) are too far from commercial cash flow to underwrite without meaningful clinical risk.
+**Rationale for the Ph2/3 cutoff**: pivotal Ph2/3 trials are frequently run on accelerated-approval pathways (especially in oncology and rare disease). An ex-China Ph2/3 asset is within 1-2 years of a potential FDA/EMA/PMDA filing, making it underwritable today — the same window as a Ph3 asset. Earlier ex-China stages (Ph2 and below) are too far from ex-China commercial cash flow to underwrite without meaningful clinical risk, and sit in `Pipeline` as a watchlist.
+
+**Rationale for excluding CN from the assignment stage**: The R-underwriting thesis for cross-border deals is that a Western licensee will develop, launch, and commercialize the asset in ex-China markets. CN stage may be Approved with material CN sales, but the royalty stream flowing back to the CN licensor from those CN sales (if any) is not the opportunity we source — the opportunity is the *ex-China* royalty stream from the Western licensee's sales. Consequently an asset that has only progressed in CN has no underwritable ex-China cash flow yet.
 
 Within each sheet, sort by `Date` descending (newest first), then by `Licensor` alphabetically.
 
 ---
 
-## Sanity-Check Rules (not dedup)
+## Update-or-Append Rules
 
-The weekly incremental raw is **already net-new by analyst curation** — full dedup logic is not run on the primary workflow. However, a light sanity check runs in Phase 3 to catch accidental re-inclusion of already-tracked deals:
+Every new raw row is classified into one of four categories by matching against the existing tracker:
 
-**Sanity-check key**: `(canonical English Licensor) + (Licensee, normalized) + (asset name, normalized)`
-
+**Match key**: `(canonical English Licensor) + (Licensee, normalized) + (asset name, normalized)`
 - **Canonical English Licensor**: translate via `company_names.md` so `荣昌生物`, `RemeGen`, and `RemeGen (荣昌生物)` all resolve to the same key
 - **Asset name normalized**: lowercase, trim, strip parenthetical (e.g. `IBI363 (IL-2; PD1 | ...)` → `ibi363`)
 
-**Behavior**:
+### Classification
 
-| Check result | Action |
-|---|---|
-| No match in existing tracker | Append as normal (default case) |
-| Match found | **Flag to user** in Phase 4 diff preview with the message: `"Warning: <asset> from <licensor> → <licensee> looks already tracked in <sheet> row <N>. Include anyway / skip / update existing?"` |
+| Tag | Condition | Action in Phase 5 |
+|---|---|---|
+| **NEW** | No match in existing tracker | Append to the appropriate sheet (`Actionable` or `Pipeline`) based on new `ex_china_stage` |
+| **UPDATE** | Match found, **and** at least one stage cell shows strict advancement (per stage ordering), **and** new `ex_china_stage` → same sheet | Update the matched row's stage cells in place (only the advanced ones). Keep the row in its current sheet. Preserve the existing Note. |
+| **PROMOTE** | Match found, stage advancement, **and** new `ex_china_stage` → different sheet (typically `Pipeline` → `Actionable` when ex-China crosses into Ph2/3+) | Remove the row from the old sheet; append it to the new sheet with the advanced stage cells. Preserve the existing Note. |
+| **NO-OP** | Match found, but no stage advancement (new raw shows same or earlier stages) | Skip silently. Surface in Phase 4 as informational ("appeared in raw but no changes") so the analyst knows it was seen. |
 
-The default assumption is that if the analyst included it, they meant to include it — but the warning prevents silent duplication.
+### Never-downgrade-stage rule
 
-**Never-downgrade-stage rule** (still applies to manual update requests): If an analyst asks me to update an existing row with new stage data, never regress — e.g. existing tracker `US = Ph3`, new data says `US = Ph2` → keep `Ph3`. Stage downgrades almost always reflect data-quality issues, not real regression.
+When processing an UPDATE or PROMOTE, compare each stage cell individually:
+- If `new > existing` (per stage ordering) → update the cell
+- If `new ≤ existing` → keep the existing value
+- Stage downgrades almost always reflect data-quality issues in the source, not real regression.
 
-**Preserve-manual-notes rule**: If an existing row's Note has been hand-edited (doesn't match auto-generated template), do not overwrite on any update. Only stage/financial cells get touched.
+### Preserve-manual-notes rule
+
+On UPDATE / PROMOTE, **never overwrite the existing Note** — stage cells are the only things that change. Analyst hand-edits on the Note column are always preserved.
+
+### Example: UPDATE without promotion
+Existing Pipeline row: `Hengrui → AstraZeneca | HRS-5635 | US=Ph1 CN=Ph1 EU=— JP=—`
+New raw: `Hengrui → AstraZeneca | HRS-5635 | US=Ph2 CN=Ph1 EU=— JP=—`
+→ `ex_china_stage` goes from `Ph1` to `Ph2`, still in Pipeline set → **UPDATE in place**: change US cell from `Ph1` to `Ph2`, leave sheet unchanged.
+
+### Example: PROMOTE
+Existing Pipeline row: `Innovent → Takeda | IBI363 | US=Ph2 CN=Ph2/3 EU=— JP=—` (ex-China = Ph2)
+New raw: `Innovent → Takeda | IBI363 | US=Ph2/3 CN=Ph3 EU=Ph1 JP=—`
+→ `ex_china_stage` goes from `Ph2` to `Ph2/3`, crosses the Actionable threshold → **PROMOTE**: remove from Pipeline, insert into Actionable with US=Ph2/3, CN=Ph3, EU=Ph1.
+
+### Ambiguous matches (CHECK)
+
+Rare edge case: if the raw row's licensor and asset match an existing row but the licensee differs (e.g. geographic carve-out — RemeGen telitacicept to Vor for ex-CN vs. to a different partner for a different territory), do **not** UPDATE or PROMOTE. Tag as **NEW** with a `[CHECK]` prefix on the Note so the analyst can decide in review.
 
 ---
 
@@ -411,7 +438,7 @@ When asked to process a weekly raw file, run as a **5-phase pipeline with a mand
 - **Detect row structure** (flat vs dual-row) via the Raw Preprocessing rules above. If dual-row, normalize to flat in memory by pairing each `管线信息` / `Pipeline Info` detail row with its preceding `交易信息` / `Deal Info` header.
 - **Detect content mode** (incremental vs full-refresh). Default to incremental; if the raw is large (>~50 rows) or clearly contains out-of-scope rows, ask the user to confirm.
 - If **full-refresh**, apply in-scope filters (out-licensing direction + GC/JP/KR HQ + non-Inactive) — these are skipped for incremental
-- Read existing `tracker/bd_tracker.xlsx` for baseline sizes and for the sanity-check index
+- Read existing `tracker/bd_tracker.xlsx` and build the **tracker match index**: `(canonical English Licensor, Licensee normalized, asset name normalized) → (sheet, row number, current stages)`. Used by Phase 3 to classify each new raw row as NEW / UPDATE / PROMOTE / NO-OP.
 - Report: `Detected: <structure> / <content mode>. N normalized rows to process. Existing tracker = X Actionable + Y Pipeline`
 
 ### Phase 2 — Mapping (in-memory, may pause for input)
@@ -424,32 +451,74 @@ When asked to process a weekly raw file, run as a **5-phase pipeline with a mand
   - Ambiguous modality that can't be unambiguously determined from the source fields
   - New licensee that looks Top-20-ish but isn't in the canonical list
 
-### Phase 3 — Sheet Assignment + Sanity Check (in-memory)
-- Compute `highest_global_stage = max(US, CN, EU, JP)` per stage ordering
-- Assign each row to `Actionable`, `Pipeline`, or exclude (Preclnl-only / all-blank)
-- Run the sanity-check index against the existing tracker — flag any row whose `(Licensor, Licensee, asset)` triple already exists
-- Determine the correct insertion point so the final sheet remains sorted by `Date` descending, then `Licensor` ascending
+### Phase 3 — Classification + Sheet Assignment (in-memory)
+
+For each normalized raw row:
+1. Compute `ex_china_stage = max(US, EU, JP)` per stage ordering (**CN excluded**).
+2. Look up the row's canonical key `(Licensor, Licensee, asset)` in the existing tracker index.
+3. **Classify** as `NEW`, `UPDATE`, `PROMOTE`, or `NO-OP` per the Update-or-Append Rules table above.
+4. For `NEW` and `PROMOTE`, determine the target sheet from the new `ex_china_stage`.
+5. For `UPDATE`, determine which specific stage cells will change (never-downgrade rule).
+6. For `NO-OP`, record the fact so Phase 4 can report it.
+7. Determine insertion points so each affected sheet remains sorted by `Date` descending, then `Licensor` ascending.
 
 ### Phase 4 — Diff Preview (mandatory checkpoint, no files written) ⚠️
-Show the user, before writing anything:
-- Projected sheet sizes: `Actionable: 35 → 35+X; Pipeline: 140 → 140+Y`
-- Full list of rows to append, grouped by target sheet, showing: `Licensor | Licensee | asset | stages US/CN/EU/JP | Total/Upfront | Note (truncated)`
-- Any sanity-check warnings with the specific question to resolve
-- Any Phase 2 pauses that got resolved, with a note showing what was decided
 
-**Wait for user confirmation** (`yes` / `go` / `OK`) before proceeding to Phase 5. If user says `dry run only`, stop here and do not write any files.
+Show the user, before writing anything:
+
+```
+Projected sheet sizes:
+  Actionable: A → A'   (+n new, +p promoted in, net change +N)
+  Pipeline:   B → B'   (+m new, -p promoted out, net change +M)
+
+--- NEW (n rows) ---
+  [Actionable]
+    1. <Licensor> → <Licensee> | <asset> | US/CN/EU/JP | $total/$upfront | <Note 1st sentence>
+    ...
+  [Pipeline]
+    1. ...
+
+--- UPDATE in place (u rows, stage advancement without sheet change) ---
+    1. <Licensor> → <Licensee> | <asset> in <sheet> row <N>
+       Stage changes: US Ph1 → Ph2
+
+--- PROMOTE Pipeline → Actionable (p rows, ex-China crossed Ph2/3 threshold) ---
+    1. <Licensor> → <Licensee> | <asset>
+       Stage changes: US Ph2 → Ph2/3; EU Preclnl → Ph1
+       ex-China: Ph2 → Ph2/3 (crosses threshold)
+
+--- NO-OP (appeared in raw but no changes: z rows) ---
+    1. <Licensor> → <Licensee> | <asset>  (already in <sheet>)
+
+--- CHECK (ambiguous: c rows) ---
+    1. <row>  — reason: <specific question>
+
+Excluded (Inactive): e rows
+
+Confirm to proceed? (yes / dry run / fix X / stop)
+```
+
+**Wait for explicit user confirmation** (`yes` / `go` / `OK`) before proceeding to Phase 5. If user says `dry run only`, stop here and do not write any files.
 
 ### Phase 5 — Write + Commit (only after explicit confirmation)
-- Append new rows to the correct sheet using openpyxl, **preserving Bloomberg formatting** (header fill, fonts, freeze panes, auto filter, row heights, highlight rules). Copy the style from an adjacent existing data row when inserting new cells so they inherit the right fonts/fills/borders.
-- Re-sort the affected sheet(s) by `Date` descending, then `Licensor` ascending. Sorting should touch only values, not formatting.
-- Run Quality Checks (see next section) on the in-memory output before saving.
-- Readback: re-open the saved file and verify 3 of the newly appended cells match expected values.
-- `git add tracker/bd_tracker.xlsx raw/YYYY-MM-DD.xlsx` (exactly these two paths — never `git add .`)
-- Commit with the canonical message:
-  ```
-  update: YYYY-MM-DD | +X new deals | <one-line summary of notable deals>
-  ```
-- Ask before pushing to `origin/main`.
+
+Apply each classification tag:
+
+1. **NEW**: append the row to its target sheet. Copy cell styles from an adjacent existing data row so fonts/fills/borders/alignment are inherited (never let openpyxl's defaults strip the Bloomberg style).
+2. **UPDATE**: overwrite only the specific stage cells that advanced. Do **not** touch the Note column. Do **not** touch financial columns unless previously `—` and now disclosed.
+3. **PROMOTE**: remove the row from its old sheet (shift other rows up), apply the stage updates, then insert into the new sheet copying styles from an adjacent data row. Preserve the Note.
+4. **NO-OP / CHECK**: no write action.
+
+Then:
+5. **Re-sort** each touched sheet by `Date` descending, then `Licensor` ascending. Sorting should touch only values, not formatting (openpyxl trick: read all data rows → sort in memory → rewrite values only, leaving styles intact).
+6. Run **Quality Checks** (next section) on the in-memory state before saving.
+7. **Readback verification**: re-open the saved file and verify a handful of cells match expected values (one row each from the NEW / UPDATE / PROMOTE batches when applicable).
+8. `git add tracker/bd_tracker.xlsx raw/YYYY-MM-DD.xlsx` (exactly these two paths — never `git add .`).
+9. Commit with the canonical message format:
+   ```
+   update: YYYY-MM-DD | +N new, +U updates, +P promotions | <one-line summary>
+   ```
+10. Ask before pushing to `origin/main`.
 
 ---
 
@@ -490,9 +559,10 @@ for r in range(2, ws.max_row+1):
     for b in BANNED:
         assert b not in note, f"Banned phrase {b!r} in Note row {r}"
 
-# 5. Sheet assignment sanity
-# Every row in Actionable must have highest_global_stage in {Ph2/3, Ph3, NDA Filed, Approved}
-# Every row in Pipeline must have highest_global_stage in {IND Filed, Ph1, Ph1/2, Ph2}
+# 5. Sheet assignment sanity (ex-China rule)
+# ex_china_stage = max(US, EU, JP)  — CN excluded
+# Every row in Actionable: ex_china_stage ∈ {Ph2/3, Ph3, NDA Filed, Approved}
+# Every row in Pipeline:   ex_china_stage ∈ {Preclnl, IND Filed, Ph1, Ph1/2, Ph2} or all blank
 ```
 
 If any check fails, do not save — fix the in-memory data and re-run.
