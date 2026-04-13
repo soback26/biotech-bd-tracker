@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A **Greater China / Japan / Korea outbound licensing deal tracker** maintained for the R-Bridge (Structured Capital) team at CBC Group. The tracker monitors cross-border BD transactions where GC/JP/KR biotech companies out-license assets to Western pharma/biotech, with a focus on identifying potential **royalty financing (RBF) and structured capital opportunities**.
+A **Greater China / Japan / Korea outbound licensing deal tracker**. The tracker monitors cross-border BD transactions where GC/JP/KR biotech companies out-license assets to Western pharma/biotech, with a focus on identifying potential **royalty financing and structured capital opportunities**.
 
 ---
 
@@ -41,7 +41,7 @@ biotech-bd-tracker/
 **Two sheets**:
 | Sheet | Definition | Current rows |
 |---|---|---|
-| `Actionable` | Highest global stage ∈ {`Ph3`, `NDA Filed`, `Approved`} — near-term cash flow potential, primary RBF universe | ~35 deals |
+| `Actionable` | Highest global stage ∈ {`Ph3`, `NDA Filed`, `Approved`} — near-term cash flow potential, primary underwriting universe | ~35 deals |
 | `Pipeline` | Highest global stage ∈ {`IND Filed`, `Ph1`, `Ph1/2`, `Ph2`, `Ph2/3`} — watchlist for future graduation to Actionable | ~140 deals |
 
 **Excluded**: All-`Preclnl`-only assets; deals where `全球研发状态 = Inactive`; domestic-only deals (`交易类型二 = 国内转国内`).
@@ -64,7 +64,7 @@ biotech-bd-tracker/
 | 12 | **Lead Indications** | Top 2-3 indications, semicolon-separated, abbreviated (e.g. `NSCLC`, `TNBC`, `RCC`, `Atopic Dermatitis`). |
 | 13 | **Rights** | Territory and rights type. Format: `R&D rights: <terr> \| Mfg rights: <terr> \| Commercial rights: <terr>` or `All rights: <terr>`. See rights mapping. |
 | 14 | **Date** | Deal announcement date, `YYYY-MM-DD`. |
-| 15 | **Note** | 1-3 sentence English analyst note: FIC/BIC flag, deal structure summary, licensor profile, **RBF relevance assessment**. |
+| 15 | **Note** | 1-3 sentence English analyst note: FIC/BIC flag, deal structure summary, licensor profile, and counterparty/financing relevance. |
 
 ---
 
@@ -158,13 +158,13 @@ Each row's `Note` is a 1-3 sentence English analyst comment covering, in order:
 1. **FIC/BIC flag** — Check `药品标签` for `First-in-Class` / `Potential First-in-Class`. If present, lead with `FIC.` or `Potential FIC.`
 2. **Deal structure summary** — What rights, to whom, in which territories. Example: `Ex-CN R&D + commercial to Summit.`
 3. **Development status highlight** — Key stage milestones. Example: `US NDA filed, CN approved.`
-4. **RBF relevance** — Royalty financing opportunity assessment for the **licensor**:
+4. **Counterparty / financing relevance** — Royalty financing opportunity assessment for the **licensor**:
    - Small/mid-cap with capital needs → `may consider royalty monetization`
-   - Large self-funded pharma (Daiichi Sankyo, Takeda, Astellas, Chugai/Roche) → `self-funded — no RBF need`
+   - Large self-funded pharma (Daiichi Sankyo, Takeda, Astellas, Chugai/Roche) → `self-funded — no financing need`
    - Near-term revenue stream → `Near-term US revenue potential`
    - Too early-stage or too small → `Limited royalty scale`
 
-**Tone**: Terse, investment-memo style. No filler. Semicolons separate thoughts. Standard abbreviations: CN, US, EU, JP, MNC, RBF, FIC, BIC, Ph3, NDA.
+**Tone**: Terse, investment-memo style. No filler. Semicolons separate thoughts. Standard abbreviations: CN, US, EU, JP, MNC, FIC, BIC, Ph3, NDA.
 
 ---
 
@@ -204,8 +204,8 @@ When asked to process a new raw file:
 
 ## Important Context
 
-- This tracker serves **CBC Group's R-Bridge team** for royalty deal sourcing.
+- This tracker is a **sourcing engine** for royalty financing and structured capital opportunities.
 - Key lens: **which licensors might benefit from royalty monetization**, synthetic royalties, or milestone receivable financing?
-- **Large self-funded JP pharma** (Takeda, Daiichi Sankyo, Astellas, Chugai/Roche) are generally **NOT RBF targets** — they don't need balance-sheet capital.
+- **Large self-funded JP pharma** (Takeda, Daiichi Sankyo, Astellas, Chugai/Roche) are generally **NOT sourcing targets** — they don't need balance-sheet capital.
 - **Small/mid-cap CN, TW, KR biotech** with multiple out-licensing deals are higher-priority targets — they typically have multiple cash-burning programs to fund.
 - Pay special attention to deals with **disclosed financials** (upfront + milestones + royalties), as these define the cash flow structure available for monetization.
