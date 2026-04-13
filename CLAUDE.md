@@ -105,8 +105,8 @@ After preprocessing, the rest of the workflow (Phase 2 mapping onwards) is **ide
 
 | Sheet | Definition | Current rows |
 |---|---|---|
-| `Actionable` | Highest global stage ∈ {`Ph3`, `NDA Filed`, `Approved`} — near-term cash flow potential, primary underwriting universe | ~35 deals |
-| `Pipeline` | Highest global stage ∈ {`IND Filed`, `Ph1`, `Ph1/2`, `Ph2`, `Ph2/3`} — watchlist for graduation to Actionable | ~140 deals |
+| `Actionable` | Highest global stage ∈ {`Ph2/3`, `Ph3`, `NDA Filed`, `Approved`} — pivotal-stage or later, near-term cash flow potential, primary underwriting universe | ~35+ deals |
+| `Pipeline` | Highest global stage ∈ {`IND Filed`, `Ph1`, `Ph1/2`, `Ph2`} — watchlist for graduation to Actionable | ~140 deals |
 
 **Excluded**: All-`Preclnl`-only assets; deals where global R&D status is `Inactive`; pure domestic deals (out-licensing direction = "Domestic to Domestic" / `国内转国内`).
 
@@ -363,14 +363,16 @@ Direct, opinionated, terse, investment-memo style. No filler. Semicolons separat
 
 ## Sheet Assignment Logic
 
-Compute `highest_global_stage = max(US, CN, EU, JP)` using the stage ordering above.
+Compute `highest_global_stage = max(US, CN, EU, JP)` using the stage ordering above. The highest-global rule captures the most advanced program status across all four tracked regions — e.g. an asset with `US=Ph2, CN=Ph2/3` resolves to `Ph2/3` and is sorted into `Actionable`.
 
 | Highest Global Stage | Sheet |
 |---|---|
-| `Approved`, `NDA Filed`, `Ph3` | **`Actionable`** |
-| `Ph2/3`, `Ph2`, `Ph1/2`, `Ph1`, `IND Filed` | **`Pipeline`** |
+| `Approved`, `NDA Filed`, `Ph3`, `Ph2/3` | **`Actionable`** |
+| `Ph2`, `Ph1/2`, `Ph1`, `IND Filed` | **`Pipeline`** |
 | `Preclnl` only or all blank | **Excluded** |
 | Global R&D status = `Inactive` | **Excluded** |
+
+**Rationale for the Ph2/3 cutoff**: pivotal Ph2/3 trials are frequently run on accelerated-approval pathways (especially in oncology and rare disease). An asset already in Ph2/3 is within 1-2 years of a potential NDA filing, making it underwritable today — the same window as a Ph3 asset. Earlier stages (Ph2 and below) are too far from commercial cash flow to underwrite without meaningful clinical risk.
 
 Within each sheet, sort by `Date` descending (newest first), then by `Licensor` alphabetically.
 
@@ -489,8 +491,8 @@ for r in range(2, ws.max_row+1):
         assert b not in note, f"Banned phrase {b!r} in Note row {r}"
 
 # 5. Sheet assignment sanity
-# Every row in Actionable must have at least one stage in {Ph3, NDA Filed, Approved}
-# Every row in Pipeline must have its highest stage in {IND Filed..Ph2/3}
+# Every row in Actionable must have highest_global_stage in {Ph2/3, Ph3, NDA Filed, Approved}
+# Every row in Pipeline must have highest_global_stage in {IND Filed, Ph1, Ph1/2, Ph2}
 ```
 
 If any check fails, do not save — fix the in-memory data and re-run.

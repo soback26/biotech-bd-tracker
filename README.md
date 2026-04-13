@@ -36,7 +36,7 @@ As of the most recent update:
 
 | Metric | Actionable | Pipeline |
 |---|---|---|
-| **Definition** | Highest global stage ≥ Ph3 | IND Filed through Ph2/3 |
+| **Definition** | Highest global stage ≥ Ph2/3 | IND Filed through Ph2 |
 | **Deals tracked** | 35 | 140 |
 | **Date range** | 2020 – 2026 | 2020 – 2026 |
 | **Primary use case** | Near-term underwriting universe | Watchlist for graduation to Actionable |
@@ -128,8 +128,8 @@ Each deal-asset row is assigned to exactly one sheet based on the **highest glob
 
 | Highest Global Stage | Sheet |
 |---|---|
-| `Approved`, `NDA Filed`, `Ph3` | **`Actionable`** — assets within near-term underwriting range |
-| `Ph2/3`, `Ph2`, `Ph1/2`, `Ph1`, `IND Filed` | **`Pipeline`** — watchlist; promote to `Actionable` upon stage advancement |
+| `Approved`, `NDA Filed`, `Ph3`, `Ph2/3` | **`Actionable`** — pivotal-stage or later, within near-term underwriting range |
+| `Ph2`, `Ph1/2`, `Ph1`, `IND Filed` | **`Pipeline`** — watchlist; promote to `Actionable` upon stage advancement |
 | `Preclnl` only | **Excluded** — too early to underwrite |
 | `全球研发状态 = Inactive` | **Excluded** — programs no longer being developed |
 
