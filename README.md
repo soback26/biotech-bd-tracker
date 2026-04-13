@@ -143,20 +143,16 @@ Preclnl < IND Filed < Ph1 < Ph1/2 < Ph2 < Ph2/3 < Ph3 < NDA Filed < Approved
 
 ## Update Workflow
 
-The standard refresh cycle when a new PharmCube export lands in `raw/`:
+The tracker is updated **weekly with an append-only incremental pass**. Each week, a pre-filtered English deal list containing only net-new transactions is dropped into `raw/`, then appended to the appropriate sheet.
 
-1. **Drop** the new file into `raw/` named as `YYYY-MM-DD.xlsx` (the export date).
-2. **Parse** the dual-row source structure: each `数据层级 = 交易信息` header pairs with one or more `数据层级 = 管线信息` detail rows. Each pipeline row becomes one tracker row.
-3. **Filter** to in-scope deals only:
-   - `交易类型二` ∈ {`国内转国外`, `国外转国外`} (skip pure domestic deals)
-   - Licensor HQ ∈ {China, Japan, Korea, Taiwan, Hong Kong}
-   - Program status not `Inactive`
-4. **Map** the 15 tracker columns from raw fields per the rules in `CLAUDE.md`.
-5. **Auto-generate** the Note field with FIC/BIC flag, deal structure summary, stage highlight, and counterparty/financing relevance.
-6. **Assign** each row to `Actionable` or `Pipeline` per the split logic above.
-7. **Deduplicate** against existing rows on `Licensor + Licensee + asset name`. Updates advance stage columns; new rows are flagged `[NEW]`; ambiguous matches are flagged `[CHECK]`.
-8. **Sort** each sheet by `Date` descending, then `Licensor` alphabetically.
-9. **Save** to `tracker/bd_tracker.xlsx` and commit with the message format:
+1. **Drop** the new file into `raw/` named as `YYYY-MM-DD.xlsx` (the export date). The file should already be **scoped to net-new deals only**, in English, and limited to in-scope out-licensing transactions from Greater China / Japan / Korea licensors.
+2. **Map** the 15 tracker columns from each raw row per the rules in `CLAUDE.md` (stage vocabulary, modality vocabulary, MoA abbreviations, rights vocabulary, disease abbreviations, Top-20 MNC tagging, etc.).
+3. **Compose** the `Licensor` column as `English (中文)` for CN/HK/TW companies using `company_names.md`; JP/KR licensors use English only.
+4. **Auto-generate** the Note field with FIC/BIC flag, deal structure summary, stage highlight, and counterparty/financing relevance.
+5. **Assign** each row to `Actionable` or `Pipeline` per the split logic above (drop Preclnl-only rows).
+6. **Append** to the target sheet. A light sanity check flags any row whose `(Licensor, Licensee, asset name)` triple already exists in the tracker — surfaced as a warning for user review, not automatically deduped.
+7. **Re-sort** each affected sheet by `Date` descending, then `Licensor` alphabetically.
+8. **Save** to `tracker/bd_tracker.xlsx` preserving Bloomberg-style formatting, then commit with the message format:
    ```
    update: YYYY-MM-DD | +X new deals | <summary of notable deals>
    ```
@@ -165,9 +161,9 @@ The standard refresh cycle when a new PharmCube export lands in `raw/`:
 
 ## Data Source
 
-All raw deal data is sourced from **医药魔方 (PharmCube)**, a Chinese pharma intelligence database widely used by domestic biotech investors and BD professionals. Exports are delivered as `.xlsx` files with a single sheet (`检索结果`, "search results") containing 40 columns and a dual-row deal/pipeline structure.
+Raw deal data is primarily sourced from **医药魔方 (PharmCube)**, a Chinese pharma intelligence database widely used by domestic biotech investors and BD professionals. PharmCube was selected over English-language alternatives (Cortellis, Evaluate Pharma, BioCentury) because GC/JP/KR domestic deals — especially smaller out-licensing transactions involving private CN biotech — are systematically better captured in Chinese-language sources.
 
-PharmCube was selected over English-language alternatives (Cortellis, Evaluate Pharma, BioCentury) because GC/JP/KR domestic deals — especially smaller out-licensing transactions involving private CN biotech — are systematically better captured in Chinese-language sources.
+**Incremental weekly input format**: the standard weekly drop into `raw/` is an **English-language, net-new-only** `.xlsx` file. The file is pre-filtered by the analyst to exclude domestic-only deals, Preclnl-only assets, and transactions already reflected in the master tracker. This keeps the append-only workflow simple and avoids the schema/dedup complications of full-refresh dumps. Legacy full-dump Chinese exports (dual-row structure with deal-level + pipeline-level rows) remain supported via the fallback rules in `CLAUDE.md`.
 
 ---
 

@@ -26,14 +26,16 @@ biotech-bd-tracker/
 ## Data Source
 
 - **Provider**: 医药魔方 (PharmCube), or any equivalent biopharma BD database that supplies the same field set
-- **Going forward**: raw exports will be **English-version** (column names in English). Legacy Chinese exports are still supported via the fallback maps in [Appendix A](#appendix-a-legacy-chinese-source-vocabulary)
-- **Naming convention**: `raw/YYYY-MM-DD.xlsx` (date of download)
-- **Typical sheet name**: a single sheet (e.g. `Search Results` or `检索结果`); detect by structure, not by name
-- **Row structure** — **dual-row pattern per deal**:
-  - **Deal-level row**: deal name, parties, financials, deal type, dates
-  - **Pipeline-level row(s)**: target, MoA, stage, indications, modality
-  - Identified by a "data hierarchy" field (`Data Level` / `数据层级`) with values "Deal Info" / "Pipeline Info" (or `交易信息` / `管线信息` in legacy Chinese exports).
-  - One deal can have **multiple pipeline rows** (multi-asset deals). Each pipeline row becomes a separate row in the tracker.
+- **Naming convention**: `raw/YYYY-MM-DD.xlsx` (date of download / drop)
+- **Primary mode — weekly incremental** (default going forward):
+  - English-language `.xlsx`, pre-filtered by the analyst to contain **only net-new deals** not yet in the tracker
+  - One row per deal-asset (flat structure); out-of-scope deals (domestic-only, Preclnl-only, Inactive, non-GC/JP/KR licensors) are already excluded by the analyst before saving
+  - This is the **default input format** — the workflow is append-only, not a full refresh, and no dedup against the existing tracker is performed
+- **Legacy mode — full-refresh Chinese dump** (supported for backfilling existing archives):
+  - Full PharmCube search export with column names in Chinese
+  - **Dual-row structure**: each deal has one `数据层级 = 交易信息` header row followed by one or more `数据层级 = 管线信息` detail rows. Multi-asset deals produce multiple pipeline rows.
+  - Requires the full 10-step legacy workflow (parse dual rows → apply in-scope filters → dedup against existing tracker → merge) — see the "Legacy Full-Refresh Workflow" sub-section below if you ever need to backfill from this format.
+- **Sheet name detection**: detect by content/structure, not by sheet name. Common names: `Search Results`, `检索结果`, or arbitrary user-chosen names.
 
 ---
 
@@ -251,10 +253,11 @@ Append `(Top20 MNC)` to Licensee for any of these (and **strip any pre-existing 
 
 ### How it is used
 
-1. **Composing the Licensor column**: For any CN/HK/TW licensor, format as `English Name (中文)` using the registry. Example: `荣昌生物` → `RemeGen (荣昌生物)`.
-2. **Dedup matching**: When checking whether a new raw row already exists in the tracker, use the registry to translate the source's Chinese licensor name to its canonical English form before comparing against existing tracker rows. This is the **only reliable way** to dedup when source and tracker are in different languages.
-3. **JP/KR licensors**: No Chinese annotation. Use the English name as-is from source.
-4. **JV entities**: No Chinese annotation (e.g. `KYM Biosciences` for 康明百奥 (JV)).
+1. **Composing the Licensor column** (primary use): For any CN/HK/TW licensor, format as `English Name (中文)` using the registry. Example: raw has `RemeGen` or `荣昌生物` → tracker shows `RemeGen (荣昌生物)`. If the weekly incremental raw is in English but lacks the Chinese name, look up the Chinese via the registry and append it in parentheses.
+2. **Sanity-check duplicate detection** (light use): In the rare event that an analyst accidentally includes a deal that already exists in the tracker, normalize both sides to canonical English via the registry before comparing. This is a **warning surface**, not an automatic dedup — any overlap is flagged to the user for review.
+3. **Legacy full-refresh dedup** (legacy use only): When backfilling from a full Chinese dump, the registry is the only reliable way to match Chinese-raw licensors against an English tracker.
+4. **JP/KR licensors**: No Chinese annotation. Use the English name as-is from source.
+5. **JV entities**: No Chinese annotation (e.g. `KYM Biosciences` for 康明百奥 (JV)).
 
 ### When to add new entries
 
@@ -315,66 +318,75 @@ Within each sheet, sort by `Date` descending (newest first), then by `Licensor` 
 
 ---
 
-## Deduplication Rules
+## Sanity-Check Rules (not dedup)
 
-Before appending new rows, match against existing entries on:
+The weekly incremental raw is **already net-new by analyst curation** — full dedup logic is not run on the primary workflow. However, a light sanity check runs in Phase 3 to catch accidental re-inclusion of already-tracked deals:
 
-**Primary key**: `(canonical English Licensor) + (Licensee, normalized) + (asset name, normalized)`
+**Sanity-check key**: `(canonical English Licensor) + (Licensee, normalized) + (asset name, normalized)`
 
-- **Canonical English Licensor**: translate via `company_names.md` first, so `荣昌生物` and `RemeGen (荣昌生物)` match
-- **Asset name normalized**: lowercase, trim, strip parenthetical (e.g., `IBI363 (IL-2; PD1 | ...)` → `ibi363`)
+- **Canonical English Licensor**: translate via `company_names.md` so `荣昌生物`, `RemeGen`, and `RemeGen (荣昌生物)` all resolve to the same key
+- **Asset name normalized**: lowercase, trim, strip parenthetical (e.g. `IBI363 (IL-2; PD1 | ...)` → `ibi363`)
 
-| Match type | Action |
+**Behavior**:
+
+| Check result | Action |
 |---|---|
-| **Exact match** | **Update** stage columns (US/CN/EU/JP) only if new data shows advancement (never downgrade — see below). Update `Total ($M)` / `Upfront ($M)` only if previously `—` and now disclosed. **Never overwrite** existing `Note` unless empty (preserves manually-edited analyst notes). |
-| **No match** | **Append** as new row, prefix Note with `[NEW]` for review. |
-| **Ambiguous** (same licensor + asset, different licensee, or close fuzzy match) | Append new row, prefix Note with `[CHECK]` for manual review. |
+| No match in existing tracker | Append as normal (default case) |
+| Match found | **Flag to user** in Phase 4 diff preview with the message: `"Warning: <asset> from <licensor> → <licensee> looks already tracked in <sheet> row <N>. Include anyway / skip / update existing?"` |
 
-**Never-downgrade rule**: If existing tracker has `US = Ph3` and new raw shows `US = Ph2`, keep `Ph3`. Stage downgrades almost always reflect data-quality issues in the source, not real regression.
+The default assumption is that if the analyst included it, they meant to include it — but the warning prevents silent duplication.
 
-**Preserve-manual-notes rule**: If an existing row's Note has been hand-edited (does not start with `[NEW]` and does not match the auto-generated template), do not overwrite it on update. Only stage/financial cells get updated.
+**Never-downgrade-stage rule** (still applies to manual update requests): If an analyst asks me to update an existing row with new stage data, never regress — e.g. existing tracker `US = Ph3`, new data says `US = Ph2` → keep `Ph3`. Stage downgrades almost always reflect data-quality issues, not real regression.
+
+**Preserve-manual-notes rule**: If an existing row's Note has been hand-edited (doesn't match auto-generated template), do not overwrite on any update. Only stage/financial cells get touched.
 
 ---
 
-## Update Workflow
+## Update Workflow (Append-Only Incremental)
 
-When asked to process a new raw file, run as a **5-phase pipeline with a mandatory review checkpoint**:
+When asked to process a weekly raw file, run as a **5-phase pipeline with a mandatory review checkpoint**:
 
 ### Phase 1 — Inspection (read-only)
-- Read new raw file, count deal headers and pipeline rows
-- Apply scope filters (out-licensing direction + GC/JP/KR HQ + non-Inactive)
-- Read existing `tracker/bd_tracker.xlsx` for dedup baseline
-- Report: `N raw rows → M in-scope rows; existing tracker = X Actionable + Y Pipeline`
+- Read new raw file from `raw/YYYY-MM-DD.xlsx` and count rows
+- Read existing `tracker/bd_tracker.xlsx` for baseline sizes and for the sanity-check index
+- Report: `N raw rows to append; existing tracker = X Actionable + Y Pipeline`
 
 ### Phase 2 — Mapping (in-memory, may pause for input)
-- Translate licensors via `company_names.md` (stop and ask user if any unfamiliar CN name appears)
-- Map each in-scope row to the 15-column schema (stages, modality, rights, indications)
+- Map each raw row to the 15-column schema (stages, modality, rights, indications) per the Field Mapping rules below
+- Compose `Licensor` as `English (中文)` for CN/HK/TW via `company_names.md`; JP/KR use English only
+- Strip any pre-existing `(Top20 MNC)` from raw Licensee, then re-apply against the canonical Top-20 list
 - Auto-generate Note per Note Generation Rules
-- Pause and ask if any field requires a judgment call (ambiguous modality, new Top-20 candidate, etc.)
+- **Pause and ask** if any field requires a judgment call:
+  - Unfamiliar CN/HK/TW licensor not yet in `company_names.md` (never guess — ask for verified English name, then add to registry)
+  - Ambiguous modality that can't be unambiguously determined from the source fields
+  - New licensee that looks Top-20-ish but isn't in the canonical list
 
-### Phase 3 — Dedup + Sheet Assignment (in-memory)
-- Match against existing rows using the canonical-English-licensor key
-- Assign each row to `Actionable` or `Pipeline` per Sheet Assignment Logic
-- Tag rows as `NEW`, `UPDATE`, `CHECK`, or `NO-OP`
-- Determine promotions (existing `Pipeline` rows whose new stage qualifies for `Actionable`)
+### Phase 3 — Sheet Assignment + Sanity Check (in-memory)
+- Compute `highest_global_stage = max(US, CN, EU, JP)` per stage ordering
+- Assign each row to `Actionable`, `Pipeline`, or exclude (Preclnl-only / all-blank)
+- Run the sanity-check index against the existing tracker — flag any row whose `(Licensor, Licensee, asset)` triple already exists
+- Determine the correct insertion point so the final sheet remains sorted by `Date` descending, then `Licensor` ascending
 
 ### Phase 4 — Diff Preview (mandatory checkpoint, no files written) ⚠️
 Show the user, before writing anything:
-- Projected sheet sizes (`Actionable: 35 → 38; Pipeline: 140 → 145`)
-- Counts: `+N NEW`, `+M PROMOTIONS`, `+K STAGE UPDATES`, `J CHECK rows`
-- Full list of NEW rows (concise — Licensor, Licensee, asset, stages, $)
-- Full list of CHECK rows with the question to resolve
-- All UPDATE / PROMOTION rows with the specific stage transitions
+- Projected sheet sizes: `Actionable: 35 → 35+X; Pipeline: 140 → 140+Y`
+- Full list of rows to append, grouped by target sheet, showing: `Licensor | Licensee | asset | stages US/CN/EU/JP | Total/Upfront | Note (truncated)`
+- Any sanity-check warnings with the specific question to resolve
+- Any Phase 2 pauses that got resolved, with a note showing what was decided
 
-**Wait for user confirmation** (`yes` / `go` / `OK`) before proceeding to Phase 5. If user says `dry run only`, stop here.
+**Wait for user confirmation** (`yes` / `go` / `OK`) before proceeding to Phase 5. If user says `dry run only`, stop here and do not write any files.
 
 ### Phase 5 — Write + Commit (only after explicit confirmation)
-- Write to `tracker/bd_tracker.xlsx` using openpyxl, **preserving Bloomberg formatting** (header fill, fonts, freeze panes, auto filter, row heights, highlight rules)
-- Run Quality Checks (see next section) on the in-memory output before saving
-- Readback: re-open the saved file and verify 3 random cells match expected values
-- `git add tracker/bd_tracker.xlsx raw/YYYY-MM-DD.xlsx`
-- Commit with message: `update: YYYY-MM-DD | +X new deals | <summary of notable deals>`
-- Ask before pushing to `origin/main`
+- Append new rows to the correct sheet using openpyxl, **preserving Bloomberg formatting** (header fill, fonts, freeze panes, auto filter, row heights, highlight rules). Copy the style from an adjacent existing data row when inserting new cells so they inherit the right fonts/fills/borders.
+- Re-sort the affected sheet(s) by `Date` descending, then `Licensor` ascending. Sorting should touch only values, not formatting.
+- Run Quality Checks (see next section) on the in-memory output before saving.
+- Readback: re-open the saved file and verify 3 of the newly appended cells match expected values.
+- `git add tracker/bd_tracker.xlsx raw/YYYY-MM-DD.xlsx` (exactly these two paths — never `git add .`)
+- Commit with the canonical message:
+  ```
+  update: YYYY-MM-DD | +X new deals | <one-line summary of notable deals>
+  ```
+- Ask before pushing to `origin/main`.
 
 ---
 
