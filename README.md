@@ -9,6 +9,7 @@
 
 - [Purpose](#purpose)
 - [Coverage Snapshot](#coverage-snapshot)
+- [Setup & Usage](#setup--usage)
 - [Repository Layout](#repository-layout)
 - [Tracker Schema](#tracker-schema)
 - [Sheet Split Logic](#sheet-split-logic)
@@ -66,12 +67,67 @@ As of the most recent update:
 
 ---
 
+## Setup & Usage
+
+### Prerequisites
+
+- **Python 3.9+** with `openpyxl` — the only runtime dependency, used to read and re-save the `.xlsx` tracker while preserving Bloomberg-style formatting:
+  ```bash
+  pip install openpyxl
+  ```
+- **[Claude Code](https://claude.com/claude-code)** CLI — required for the guided update workflow.
+
+### Updating the tracker from a new raw file
+
+This repo ships a project-level Claude Code skill at [`.claude/skills/bd-tracker/SKILL.md`](./.claude/skills/bd-tracker/SKILL.md) that auto-activates when you open the repo in Claude Code. The skill enforces a **5-phase pipeline with a mandatory Phase 4 diff-preview checkpoint** before any file is written — full rules are in [`CLAUDE.md`](./CLAUDE.md).
+
+Typical workflow:
+
+```bash
+# 1. Drop a new PharmCube export into raw/, named by the drop date
+cp ~/Downloads/pharmcube_2026-04-15.xlsx raw/2026-04-15.xlsx
+
+# 2. Launch Claude Code from the repo root
+cd biotech-bd-tracker
+claude
+
+# 3. Tell Claude what you want
+> update the BD tracker with raw/2026-04-15.xlsx
+```
+
+Claude will:
+
+1. **Inspect** the raw file — auto-detect flat vs dual-row structure and incremental vs full-refresh content mode.
+2. **Map** each row to the 15-column schema per `CLAUDE.md`, pausing on any unfamiliar CN/HK/TW licensor, ambiguous modality, or Top-20-ish licensee not on the canonical list.
+3. **Classify** each row as `NEW` / `UPDATE` / `PROMOTE` / `NO-OP` using `ex_china_stage = max(US, EU, JP)` (CN deliberately excluded).
+4. **Show a diff preview** — projected sheet sizes and the full list of new rows, updates, and promotions — and **wait for your explicit confirmation** (`yes` / `go`) before writing anything.
+5. **Write, re-sort, run quality checks, readback-verify, and prepare a commit** — preserving Bloomberg formatting and existing Notes. Claude will ask before pushing to `origin/main`.
+
+Say `dry run only` at any point to stop at the diff preview without writing.
+
+### Invoking the skill directly
+
+If Claude doesn't auto-pick up the workflow from natural language, invoke the skill explicitly:
+
+```
+/bd-tracker
+```
+
+Or use any of the trigger phrases: `update BD tracker`, `更新 BD tracker`, `PharmCube export`, `process raw/YYYY-MM-DD.xlsx`.
+
+---
+
 ## Repository Layout
 
 ```
 biotech-bd-tracker/
 ├── README.md              # This file — project overview
 ├── CLAUDE.md              # Detailed update rules and field mappings
+├── company_names.md       # Canonical CN→EN licensor name registry
+├── .claude/
+│   └── skills/
+│       └── bd-tracker/
+│           └── SKILL.md   # Project-level Claude Code skill (thin wrapper over CLAUDE.md)
 ├── raw/
 │   └── YYYY-MM-DD.xlsx    # Raw exports from PharmCube (one per refresh)
 ├── tracker/
