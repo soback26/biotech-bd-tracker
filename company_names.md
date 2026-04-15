@@ -84,7 +84,6 @@ Last updated: 2026-04-13
 | 逸达生物 | Foresee Pharma | TW: 6438 | |
 | 安立玺荣 | Elixiron Immunotherapeutics | TW | |
 | 合一生技 / 中天生技 | Oneness/Microbio | TW | United BioPharma group |
-| 康明百奥 (JV) | KYM Biosciences | — | Alphamab/Lepu JV |
 
 ## Japan
 
