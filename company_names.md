@@ -1,6 +1,6 @@
 # Company Name Registry: CN → EN
 
-Last updated: 2026-04-13
+Last updated: 2026-04-17
 
 ## Greater China (Mainland + HK + TW)
 
@@ -84,6 +84,7 @@ Last updated: 2026-04-13
 | 逸达生物 | Foresee Pharma | TW: 6438 | |
 | 安立玺荣 | Elixiron Immunotherapeutics | TW | |
 | 合一生技 / 中天生技 | Oneness/Microbio | TW | United BioPharma group |
+| 亿一生物 | Evive Biotech | Private | Subsidiary of Yifan Pharma (SH: 002019); G-CSF Fc-fusion (Ryzneuta®) |
 
 ## Japan
 
