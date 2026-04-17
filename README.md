@@ -38,32 +38,33 @@ As of the most recent update:
 | Metric | Actionable | Pipeline |
 |---|---|---|
 | **Definition** | Highest ex-China stage (US/EU/JP) ≥ Ph2/3 | Highest ex-China stage is Ph2 or earlier |
-| **Deals tracked** | 35 | 140 |
+| **Deals tracked** | 42 | 134 |
 | **Date range** | 2020 – 2026 | 2020 – 2026 |
 | **Primary use case** | Near-term underwriting universe | Watchlist for graduation to Actionable |
 
-**Geographic mix** (Pipeline + Actionable combined, ~175 deals):
+**Geographic mix** (Pipeline + Actionable combined, 176 deals):
 
 | Licensor HQ | Deals |
 |---|---|
-| China | 120 |
+| China | 121 |
 | Japan | 30 |
 | Korea | 21 |
 | Taiwan | 2 |
 | Hong Kong | 1 |
 | Japan; UK | 1 |
 
-**Modality mix** (Pipeline sheet, n=140):
+**Modality mix** (Pipeline sheet, n=134):
 
 | Modality | Deals |
 |---|---|
-| Small Molecule | 50 |
-| ADC | 37 |
-| Monoclonal Antibody | 32 |
+| Small Molecule | 47 |
+| ADC | 36 |
+| Monoclonal Antibody | 30 |
 | siRNA | 5 |
 | Peptide | 5 |
 | Cell Therapy | 5 |
-| Other | 6 |
+| Fusion Protein | 5 |
+| Gene Therapy | 1 |
 
 ---
 

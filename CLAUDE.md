@@ -105,7 +105,7 @@ After preprocessing, the rest of the workflow (Phase 2 mapping onwards) is **ide
 
 | Sheet | Definition | Current rows |
 |---|---|---|
-| `Actionable` | **Highest ex-China stage** ∈ {`Ph2/3`, `Ph3`, `NDA Filed`, `Approved`} — asset is at pivotal stage or later **in at least one of US / EU / JP**, making the ex-China cash flow underwritable today | ~41 deals |
+| `Actionable` | **Highest ex-China stage** ∈ {`Ph2/3`, `Ph3`, `NDA Filed`, `Approved`} — asset is at pivotal stage or later **in at least one of US / EU / JP**, making the ex-China cash flow underwritable today | ~42 deals |
 | `Pipeline` | Highest ex-China stage ∈ {`Preclnl`, `IND Filed`, `Ph1`, `Ph1/2`, `Ph2`} or all blank — watchlist for graduation to Actionable as ex-China trials advance | ~134 deals |
 
 **The investment thesis is ex-China royalty opportunities, not Chinese domestic sales.** An asset that is CN-Approved but still Preclnl in US/EU/JP has no underwritable ex-China cash flow — it goes to Pipeline (watchlist), not Actionable, even though its global stage is "Approved". Once ex-China trials reach Ph2/3, it graduates to Actionable.
